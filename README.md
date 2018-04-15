@@ -34,9 +34,6 @@ The actual build commands (compile, link etc.) are extracted from the Arduino de
 
 Uploading of the built binary can be made via serial channel (esptool), ota (espota.py) or http (curl). Which method to use is controlled by makefile target selection. By default the serial channel is used.
 
-#### Note about ESP32
-It is still early days for the ESP32/Arduino environment and some functionality is still missing, most notably the SPIFFS file system.
-
 
 #### Installing
 
@@ -52,10 +49,10 @@ Then start cloning the makeEspArduino repository.
 After this you can test it. Attach your ESP8266 board and execute the following commands:
 
     cd makeEspArduino
-    make -f makeEspArduino.mk flash
+    make -f makeEspArduino.mk DEMO=1 flash
 
-After this you will have the example "HelloServer" in your ESP. This is the default demo example which the makefile chooses
-if no sketch has been specified.
+The DEMO definition makes the the makefile choose a typical demo sketch from the ESP examples.
+After this you will have the example downloaded onto in your ESP.
 
 If you want to use a clone of the environment instead then do something like this:
 
@@ -76,13 +73,13 @@ Then install the required environment tools by issuing the following commands:
 To test this installation you have to specify the location of the environment when running make
 
     cd ~/makeEspArduino
-    make -f makeEspArduino.mk flash ESP_ROOT=~/esp8266
+    make -f makeEspArduino.mk ESP_ROOT=~/esp8266 DEMO=1 flash
 
 For ESP32 project the current setup doesn't enable automatic detection of the esp32 environment and hence the variable ESP_ROOT must always be defined.
 
 When building ESP32 projects the variable CHIP must also always be defined, example:
 
-    make -f makeEspArduino.mk flash ESP_ROOT=~/esp32 CHIP=esp32
+    make -f makeEspArduino.mk ESP_ROOT=~/esp32 CHIP=esp32 DEMO=1 flash
 
 #### Getting help
 
@@ -131,12 +128,11 @@ the makefile doesn't need to know the location of makeEspArduino.mk, more about 
 
 The most important variables in the makefile are listed below:
 
-**SKETCH** is the path to the main source file. As stated above, if this is missing then makeEspArduino will try to locate it in the current directory. If no file is found
-an example sketch from will be used.
+**SKETCH** is the path to the main source file. As stated above, if this is missing then makeEspArduino will try to locate it in the current directory.
 
 **LIBS** is a variable which can contain a list of explicit source files and/or directories with multiple source files, which are to be compiled and used as libraries
 in the build. Please note that there is no restrictions regarding location and naming of these files as in the Arduino IDE build system.
-If you want to achieve automatic search for libraries leave this variable undefined. In this case makeEspArduino will try to recursively locate all required libraries by parsing the include statements in the sketch source file. Libraries in the ESP/Arduino library structure and the standard Arduino library tree will be searched. It is also possible to add other directories/file to search by defining the variable **CUSTOM_LIBS**.
+If you want to achieve automatic search for libraries leave this variable undefined. In this case makeEspArduino will try to recursively locate all required libraries by parsing the include statements in the sketch source file (and other source files in the sketch directory). Libraries in the ESP/Arduino library structure and the standard Arduino library tree will be searched. It is also possible to add other directories/file to search by defining the variable **CUSTOM_LIBS**.
 Please note though that if you want stringent version controlled builds, then define **LIBS** yourself and set it to version controlled directories/files.
 All source files located in the same directory as the sketch will also be included automatically. The variable **EXCLUDE_DIRS** can be setup to exclude one or several directories from the wildcard search.
 
@@ -194,13 +190,21 @@ It is of course also always possible to control the variable values in the makef
 
 #### Flash operations for esp8266
 
-The Arduino configuration files for esp8266 currently specifies "esptool ck" as the tool to be used for flashing operations. The alternative "esptool.py" (which is used for esp32) can however be used here as well. This tool is significantly faster and makeEspArduino will check if "esptool.py" can be found in the path. When present, it will be used for the flashing. An alternative location outside of the path for "esptool.py" can also be specified via the variable ESPTOOL_PY.
-This tool is not part of ESP/Arduino and subsequently must be installed separately from: https://github.com/espressif/esptool
+The Arduino configuration files for esp8266 currently specifies "esptool ck" as the tool to be used for flashing operations. The alternative "esptool.py" (which is used for esp32) can however be used here as well. This tool is significantly faster and makeEspArduino will check if "esptool.py" can be found in the path. When present, it will be used for the flashing. An alternative location outside of the path for "esptool.py" can also be specified via the variable ESPTOOL.
+This tool is not part of ESP/Arduino and subsequently must be installed separately from: https://github.com/espressif/esptool or just by typing:
+
+    pip install esptool
+
+For esp32 this tool is included and used for all flashing operations by default.
 
 #### Building a file system
 
 There are also rules in the makefile which can be used for building and uploading a complete SPIFFS file system to the ESP. This is basically the same functionality
 as the one available in the Arduino IDE, https://github.com/esp8266/Arduino/blob/master/doc/filesystem.rst#uploading-files-to-file-system
+
+The bundled tool "mkspiffs" is used for this.
+
+The size and flash location parameters are taken from boards.txt for esp8266 and from the partition table for esp32.
 
 The file system content is made up of everything within a directory specified via the variable **FS_DIR**. By default this variable is set to a subdirectory named
 **data** in the sketch directory.
@@ -209,18 +213,22 @@ Use the rule **flash_fs** or **ota_fs** to generate a file system image and uplo
 
 All the settings for the file system are taken from the selected board's configuration.
 
-*This function is currently not available for esp32*
+It is also possible to dump and recreate the complete file system from the device via the rule **dump_fs**. The corresponding flash section will be extracted and the individual files recreated in a directory in the build structure.
+
+***Please note for esp32!***
+
+Version 0.2.2 or later of mkspiffs is required.
+
+
 
 #### Additional flash I/O operations
 
 The makefile has rules for dumping and restoring the whole flash memory contents to and from a file. This can be convenient for saving a specific state or software for which no source code is available.
 
-This functionality requires that "esptool.py" is available as specified above.
+For esp8266, this functionality requires that "esptool.py" is available as specified above.
 
 The rules are named **dump_flash** and **restore_flash**. The name of the output/input file is controlled by the variable **FLASH_FILE**. The default value for this is "esp_flash.bin". All required parameters for the operations are taken from the variables mentioned above for flash size, serial port and speed etc.
 
 Example:
 
     espmake dump_flash FLASH_FILE=my_flash.bin
-
-*This function is currently not available for esp32*
